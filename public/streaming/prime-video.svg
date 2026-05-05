@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="title">
+  <title id="title">Prime Video</title>
+  <rect width="48" height="48" rx="12" fill="#00A8E1"/>
+  <path fill="#fff" d="M10 16h9c5 0 8 3 8 7s-3 7-8 7h-4v6h-5V16Zm5 4v6h4c2 0 3-1 3-3s-1-3-3-3h-4Zm12 12c4 2 8 2 12-1l1 3c-5 4-11 4-16 1l3-3Z"/>
+</svg>

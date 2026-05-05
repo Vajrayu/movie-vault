@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="title">
+  <title id="title">Max</title>
+  <rect width="48" height="48" rx="12" fill="#002BE7"/>
+  <path fill="#fff" d="M8 17h8l3 8 3-8h8v14h-5v-8l-4 8h-4l-4-8v8H8V17Zm25 0h7l5 14h-6l-.7-2h-4.6l-.7 2h-5l5-14Zm2 8h2l-1-4-1 4Z"/>
+</svg>

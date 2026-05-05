@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="title">
+  <title id="title">Paramount Plus</title>
+  <rect width="48" height="48" rx="12" fill="#0064FF"/>
+  <circle cx="24" cy="24" r="13" fill="#fff"/>
+  <path fill="#0064FF" d="M14 30h20l-6-12-4 7-3-5-7 10Zm20-11h4v4h4v4h-4v4h-4v-4h-4v-4h4v-4Z"/>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="title">
+  <title id="title">Peacock</title>
+  <rect width="48" height="48" rx="12" fill="#111123"/>
+  <path fill="#fff" d="M10 15h11c5 0 8 3 8 7s-3 7-8 7h-5v7h-6V15Zm6 5v4h4c2 0 3-1 3-2s-1-2-3-2h-4Z"/>
+  <circle cx="34" cy="17" r="3" fill="#F5E90A"/>
+  <circle cx="39" cy="22" r="3" fill="#FF1B8D"/>
+  <circle cx="34" cy="27" r="3" fill="#19C9FF"/>
+  <circle cx="39" cy="32" r="3" fill="#28F277"/>
+</svg>

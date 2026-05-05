@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="title">
+  <title id="title">Netflix</title>
+  <rect width="48" height="48" rx="12" fill="#111123"/>
+  <path fill="#E50914" d="M14 10h7l6 17V10h7v28h-7l-6-17v17h-7V10Z"/>
+</svg>

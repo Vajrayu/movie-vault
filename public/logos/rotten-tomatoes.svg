@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 40" role="img" aria-labelledby="title">
+  <title id="title">Rotten Tomatoes</title>
+  <rect width="96" height="40" rx="8" fill="#FA320A"/>
+  <circle cx="22" cy="21" r="11" fill="#F5E90A" stroke="#111123" stroke-width="3"/>
+  <path fill="#28F277" stroke="#111123" stroke-linejoin="round" stroke-width="2" d="M19 10c2-6 8-5 9 1-4-1-6 0-9-1Zm5 2c4-5 10-2 9 4-4-2-6-2-9-4Z"/>
+  <path fill="#111123" d="M41 12h15v5h-5v13h-6V17h-4v-5Zm18 0h17v5h-6v13h-6V17h-5v-5Z"/>
+  <path fill="#fff" d="M42 31h35v3H42z"/>
+</svg>

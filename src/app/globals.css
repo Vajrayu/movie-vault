@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+:root {
+  --vault-ink: #111123;
+  --vault-yellow: #f5e90a;
+  --vault-pink: #ff1b8d;
+  --vault-cyan: #19c9ff;
+  --vault-green: #28f277;
+  --vault-purple: #7c3aed;
+}
+
+@layer base {
+  html {
+    background: var(--vault-yellow);
+  }
+
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at 1px 1px, rgba(17, 17, 35, 0.12) 1px, transparent 0) 0 0 / 32px 32px,
+      linear-gradient(180deg, #fff70d 0%, var(--vault-yellow) 42%, #fff200 100%);
+    color: var(--vault-ink);
+    font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  }
+
+  ::selection {
+    background: var(--vault-pink);
+    color: white;
+  }
+}
+
+@keyframes vault-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--vault-rotate, 0deg));
+  }
+
+  50% {
+    transform: translateY(-14px) rotate(var(--vault-rotate, 0deg));
+  }
+}
+
+@layer components {
+  .vault-page {
+    @apply min-h-screen px-4 py-6 text-[#111123] sm:px-6 lg:px-8;
+  }
+
+  .vault-shell {
+    @apply mx-auto w-full max-w-7xl;
+  }
+
+  .vault-ink-border {
+    border: 3px solid var(--vault-ink);
+  }
+
+  .vault-panel {
+    border: 3px solid var(--vault-ink);
+    @apply rounded-[1.15rem] bg-white shadow-[7px_9px_0_#111123,0_20px_38px_rgba(17,17,35,0.18)];
+  }
+
+  .vault-panel-yellow {
+    border: 3px solid var(--vault-ink);
+    @apply rounded-[1.15rem] bg-[#fff70d] shadow-[8px_10px_0_#111123,0_22px_38px_rgba(17,17,35,0.2)];
+  }
+
+  .vault-button {
+    border: 3px solid var(--vault-ink);
+    @apply inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-black uppercase tracking-normal shadow-[4px_5px_0_#111123,0_12px_20px_rgba(17,17,35,0.14)] transition duration-200 hover:-translate-y-1 hover:rotate-[-1deg] hover:shadow-[6px_7px_0_#111123,0_18px_24px_rgba(17,17,35,0.18)] disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .vault-chip {
+    border: 3px solid var(--vault-ink);
+    @apply inline-flex items-center rounded-full bg-[#ff1b8d] px-4 py-2 text-xs font-black uppercase tracking-normal text-white shadow-[4px_5px_0_#111123];
+  }
+
+  .vault-field {
+    border: 3px solid var(--vault-ink);
+    @apply w-full rounded-xl bg-white px-4 py-3 text-base font-bold text-[#111123] outline-none shadow-[3px_4px_0_#111123] transition focus:-translate-y-0.5 focus:bg-[#fffdf0] focus:ring-4 focus:ring-[#19c9ff]/35;
+  }
+
+  .vault-float {
+    animation: vault-float 6.5s ease-in-out infinite;
+  }
+}
