@@ -177,6 +177,7 @@ export default function MoviePage() {
   const posterUrl = String(movie.poster_url ?? '')
   const overview = String(movie.overview ?? '')
   const year = String(movie.year ?? '')
+  const tmdbId = getFirstMovieValue(movie, ['tmdb_id', 'tmdbId'])
   const rating = movie.user_rating ?? movie.rating
   const criticRatings = [
     {
@@ -291,12 +292,16 @@ export default function MoviePage() {
   return (
     <main className="vault-page py-8 sm:py-10">
       <div className="mx-auto max-w-7xl">
-        <Link
-          href="/"
-          className="vault-button mb-7 rotate-[-1deg] bg-white"
-        >
-          Back to movies
-        </Link>
+        <div className="mb-7 flex flex-wrap gap-3">
+          <Link href="/" className="vault-button rotate-[-1deg] bg-white">
+            Back to movies
+          </Link>
+          {tmdbId && (
+            <Link href={`/tmdb/movie/${tmdbId}`} className="vault-button bg-white">
+              Movie Details
+            </Link>
+          )}
+        </div>
       </div>
 
       <article className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[minmax(280px,430px)_1fr] lg:items-start lg:gap-10">

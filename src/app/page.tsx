@@ -1,18 +1,293 @@
 'use client'
 
-import { useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useRouter } from 'next/navigation'
 import { MovieCard } from '@/components/MovieCard'
-import { useMovies } from '@/hooks/useMovies'
+import { searchMovies } from '@/hooks/useTMDB'
+import { searchLocalMovies, useMovies, type Movie } from '@/hooks/useMovies'
 
 export default function Page() {
+  const router = useRouter()
   const { movies, loading, hasMore, loadMore } = useMovies()
-  const [searchMode, setSearchMode] = useState<'search' | 'find'>('find')
+  const [query, setQuery] = useState('')
+  const [showGlobalResults, setShowGlobalResults] = useState(false)
+  const [globalResults, setGlobalResults] = useState<
+    Awaited<ReturnType<typeof searchMovies>>
+  >([])
+  const [globalLoading, setGlobalLoading] = useState(false)
+  const [localSearchResults, setLocalSearchResults] = useState<Movie[]>([])
+  const [localSearchLoading, setLocalSearchLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const tmdbSearchRequestId = useRef(0)
+  const localSearchRequestId = useRef(0)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  const hasSearchQuery = query.trim().length > 0
+  const displayedMovies = hasSearchQuery ? localSearchResults : movies
+
+  useEffect(() => {
+    const trimmedQuery = query.trim()
+
+    if (!trimmedQuery) {
+      return
+    }
+
+    const requestId = localSearchRequestId.current + 1
+    localSearchRequestId.current = requestId
+
+    async function loadLocalSearchResults() {
+      setLocalSearchLoading(true)
+
+      const { data, error } = await searchLocalMovies(trimmedQuery)
+
+      if (requestId !== localSearchRequestId.current) {
+        return
+      }
+
+      if (error) {
+        setLocalSearchResults([])
+      } else {
+        setLocalSearchResults(data ?? [])
+      }
+
+      setLocalSearchLoading(false)
+    }
+
+    loadLocalSearchResults()
+  }, [query])
+
+  useEffect(() => {
+    if (hasSearchQuery || showGlobalResults || loading || !hasMore) {
+      return
+    }
+
+    const loadMoreNode = loadMoreRef.current
+
+    if (!loadMoreNode) {
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          void loadMore()
+        }
+      },
+      { rootMargin: '600px 0px' }
+    )
+
+    observer.observe(loadMoreNode)
+
+    return () => observer.disconnect()
+  }, [hasMore, hasSearchQuery, loadMore, loading, showGlobalResults])
+
+  async function handleFindMovie() {
+    const trimmedQuery = query.trim()
+
+    console.log('[TMDB search] Find this movie button clicked', {
+      query: trimmedQuery,
+    })
+
+    if (!trimmedQuery) {
+      console.log('[TMDB search] Skipping TMDB search because query is empty')
+      return
+    }
+
+    const requestId = tmdbSearchRequestId.current + 1
+    tmdbSearchRequestId.current = requestId
+
+    setGlobalLoading(true)
+    setShowGlobalResults(true)
+
+    try {
+      console.log('[TMDB search] Calling searchMovies(query)', {
+        query: trimmedQuery,
+      })
+      const results = await searchMovies(trimmedQuery)
+
+      if (requestId !== tmdbSearchRequestId.current) {
+        return
+      }
+
+      console.log('[TMDB search] Storing TMDB results in state', {
+        count: results.length,
+        sampleResults: results.slice(0, 3).map((movie) => ({
+          id: movie.id,
+          title: movie.title,
+          release_date: movie.release_date,
+        })),
+      })
+      setGlobalResults(results)
+    } catch (error) {
+      if (requestId !== tmdbSearchRequestId.current) {
+        return
+      }
+
+      console.error('[TMDB search] Failed to load TMDB results', error)
+      setGlobalResults([])
+    } finally {
+      if (requestId === tmdbSearchRequestId.current) {
+        setGlobalLoading(false)
+      }
+    }
+  }
+
+  if (showGlobalResults) {
+    console.log('[TMDB search] Results state before rendering', {
+      count: globalResults.length,
+      loading: globalLoading,
+      results: globalResults.slice(0, 3).map((movie) => ({
+        id: movie.id,
+        title: movie.title,
+        release_date: movie.release_date,
+      })),
+    })
+  }
+
+  function renderLocalGrid() {
+    return (
+      <div className="grid grid-cols-2 gap-5 sm:gap-7 lg:grid-cols-4 lg:gap-8">
+        {displayedMovies.map((movie, index) => (
+          <MovieCard
+            key={String(movie.id ?? index)}
+            id={String(movie.id)}
+            title={String(movie.title ?? 'Untitled movie')}
+            poster_url={String(movie.poster_url ?? '')}
+            year={String(movie.year ?? '')}
+            user_rating={
+              movie.user_rating == null ? null : String(movie.user_rating)
+            }
+          />
+        ))}
+      </div>
+    )
+  }
+
+  function renderLocalList() {
+    return (
+      <div className="space-y-4">
+        {displayedMovies.map((movie, index) => {
+          const title = String(movie.title ?? 'Untitled movie')
+          const posterUrl = String(movie.poster_url ?? '')
+          const year = String(movie.year ?? '')
+          const userRating =
+            movie.user_rating == null ? null : String(movie.user_rating)
+
+          return (
+            <button
+              key={String(movie.id ?? index)}
+              type="button"
+              onClick={() => router.push(`/movie/${String(movie.id)}`)}
+              className="vault-panel flex w-full items-center gap-4 p-3 text-left transition duration-200 hover:-translate-y-1 sm:gap-5 sm:p-4"
+            >
+              <div className="h-28 w-20 shrink-0 overflow-hidden rounded-xl border-[3px] border-[#111123] bg-[#111123] sm:h-32 sm:w-24">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={posterUrl}
+                  alt={`${title} poster`}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="line-clamp-2 text-2xl font-black uppercase leading-none text-[#111123] sm:text-3xl">
+                  {title}
+                </h2>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {year && (
+                    <span className="text-sm font-black uppercase text-[#111123]/65">
+                      {year}
+                    </span>
+                  )}
+                  {userRating != null && (
+                    <span className="vault-chip bg-[#ff1b8d] text-white">
+                      Rating: {userRating}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
+
+  function renderTMDBGrid() {
+    return (
+      <div className="grid grid-cols-2 gap-5 sm:gap-7 lg:grid-cols-4 lg:gap-8">
+        {globalResults.map((movie) => (
+          <div key={movie.id} className="relative [&_a]:pointer-events-none">
+            <MovieCard
+              id={movie.id}
+              title={movie.title}
+              poster_url={
+                movie.poster_path
+                  ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+                  : ''
+              }
+              year={movie.release_date.slice(0, 4)}
+            />
+            <button
+              type="button"
+              onClick={() => router.push(`/tmdb/movie/${movie.id}`)}
+              aria-label={`View ${movie.title} TMDB details`}
+              className="absolute inset-0 z-10 rounded-[1.25rem]"
+            />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  function renderTMDBList() {
+    return (
+      <div className="space-y-4">
+        {globalResults.map((movie) => {
+          const posterUrl = movie.poster_path
+            ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+            : ''
+          const year = movie.release_date.slice(0, 4)
+
+          return (
+            <button
+              key={movie.id}
+              type="button"
+              onClick={() => router.push(`/tmdb/movie/${movie.id}`)}
+              className="vault-panel flex w-full items-center gap-4 p-3 text-left transition duration-200 hover:-translate-y-1 sm:gap-5 sm:p-4"
+            >
+              <div className="h-28 w-20 shrink-0 overflow-hidden rounded-xl border-[3px] border-[#111123] bg-[#111123] sm:h-32 sm:w-24">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={posterUrl}
+                  alt={`${movie.title} poster`}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="line-clamp-2 text-2xl font-black uppercase leading-none text-[#111123] sm:text-3xl">
+                  {movie.title}
+                </h2>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {year && (
+                    <span className="text-sm font-black uppercase text-[#111123]/65">
+                      {year}
+                    </span>
+                  )}
+                  <span className="vault-chip bg-[#19c9ff] text-[#111123]">
+                    TMDB
+                  </span>
+                </div>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
 
   return (
     <main className="min-h-screen text-[#111123]">
       <section className="border-b-[5px] border-[#111123] bg-white px-4 py-4 sm:px-6 lg:px-8">
-        <nav className="vault-shell grid items-center gap-4 lg:grid-cols-[1fr_auto_1fr]">
+        <nav className="vault-shell grid items-center gap-4 lg:grid-cols-[1fr_minmax(240px,440px)_1fr]">
           <div className="flex items-center gap-3">
             <div className="relative h-14 w-14 rotate-[-5deg] rounded-2xl border-[3px] border-[#111123] bg-white shadow-[4px_5px_0_#111123]">
               <div className="absolute left-3 top-3 h-7 w-7 rounded-md border-[3px] border-[#111123] bg-[#19c9ff]" />
@@ -30,37 +305,27 @@ export default function Page() {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-[auto_minmax(240px,440px)]">
-            <div className="flex rounded-2xl border-[3px] border-[#111123] bg-white p-1 shadow-[4px_5px_0_#111123]">
-              {(['search', 'find'] as const).map((mode) => {
-                const isActive = searchMode === mode
+          <label className="flex items-center gap-3 rounded-2xl border-[3px] border-[#111123] bg-white px-4 py-3 shadow-[4px_5px_0_#111123]">
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => {
+                const nextQuery = event.target.value
 
-                return (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setSearchMode(mode)}
-                    className={`rounded-xl px-4 py-2 text-sm font-black uppercase transition duration-200 ${
-                      isActive
-                        ? 'scale-105 bg-[#111123] text-white shadow-[2px_3px_0_#19c9ff]'
-                        : 'bg-white text-[#111123] opacity-55 hover:opacity-100'
-                    }`}
-                  >
-                    {mode}
-                  </button>
-                )
-              })}
-            </div>
-
-            <label className="flex items-center gap-3 rounded-2xl border-[3px] border-[#111123] bg-white px-4 py-3 shadow-[4px_5px_0_#111123]">
-              <input
-                type="search"
-                placeholder="Filter your movies..."
-                className="min-w-0 flex-1 bg-transparent text-sm font-black text-[#111123] outline-none placeholder:text-[#111123]/45"
-              />
-              <span className="relative h-5 w-5 rounded-full border-[3px] border-[#111123] after:absolute after:-bottom-1 after:-right-1 after:h-2 after:w-[3px] after:rotate-[-45deg] after:rounded-full after:bg-[#111123]" />
-            </label>
-          </div>
+                tmdbSearchRequestId.current += 1
+                localSearchRequestId.current += 1
+                setQuery(nextQuery)
+                setShowGlobalResults(false)
+                setGlobalResults([])
+                setGlobalLoading(false)
+                setLocalSearchResults([])
+                setLocalSearchLoading(nextQuery.trim().length > 0)
+              }}
+              placeholder="Filter your movies..."
+              className="min-w-0 flex-1 bg-transparent text-sm font-black text-[#111123] outline-none placeholder:text-[#111123]/45"
+            />
+            <span className="relative h-5 w-5 rounded-full border-[3px] border-[#111123] after:absolute after:-bottom-1 after:-right-1 after:h-2 after:w-[3px] after:rotate-[-45deg] after:rounded-full after:bg-[#111123]" />
+          </label>
 
           <div className="flex justify-start gap-3 lg:justify-end">
             {(['grid', 'list'] as const).map((mode) => {
@@ -149,42 +414,48 @@ export default function Page() {
 
       <section className="px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
         <div className="mx-auto max-w-[98rem] space-y-9">
-          {loading && movies.length === 0 ? (
+          {(hasSearchQuery ? localSearchLoading : loading && movies.length === 0) ? (
             <p className="vault-panel inline-flex rotate-[-1deg] px-5 py-3 text-base font-black">
               Loading movies...
             </p>
           ) : (
             <>
               <p className="pl-1 text-sm font-black uppercase tracking-normal text-[#111123] sm:text-base">
-                {movies.length} movies
+                {showGlobalResults
+                  ? `${globalResults.length} TMDB results`
+                  : `${displayedMovies.length} movies`}
               </p>
 
-              <div className="grid grid-cols-2 gap-5 sm:gap-7 lg:grid-cols-4 lg:gap-8">
-                {movies.map((movie, index) => (
-                  <MovieCard
-                    key={String(movie.id ?? index)}
-                    id={String(movie.id)}
-                    title={String(movie.title ?? 'Untitled movie')}
-                    poster_url={String(movie.poster_url ?? '')}
-                    year={String(movie.year ?? '')}
-                    user_rating={
-                      movie.user_rating == null
-                        ? null
-                        : String(movie.user_rating)
-                    }
-                  />
-                ))}
-              </div>
+              {showGlobalResults ? (
+                globalLoading ? (
+                  <p className="vault-panel inline-flex rotate-[-1deg] px-5 py-3 text-base font-black">
+                    Loading movies...
+                  </p>
+                ) : (
+                  <>{viewMode === 'grid' ? renderTMDBGrid() : renderTMDBList()}</>
+                )
+              ) : (
+                <>{viewMode === 'grid' ? renderLocalGrid() : renderLocalList()}</>
+              )}
 
-              {hasMore && (
+              {hasSearchQuery && !showGlobalResults && (
                 <button
                   type="button"
-                  onClick={loadMore}
-                  disabled={loading}
-                  className="vault-button bg-[#ff1b8d] text-white"
+                  onClick={() => void handleFindMovie()}
+                  className="inline-flex pl-1 text-sm font-black text-[#111123] underline decoration-[3px] underline-offset-4 transition duration-200 hover:text-[#ff1b8d] sm:text-base"
                 >
-                  {loading ? 'Loading...' : 'Load more'}
+                  Didn&apos;t find what you&apos;re looking for? Search on TMDB →
                 </button>
+              )}
+
+              {!hasSearchQuery && !showGlobalResults && (
+                <div ref={loadMoreRef} className="h-8">
+                  {loading && movies.length > 0 && (
+                    <p className="vault-panel inline-flex rotate-[-1deg] px-5 py-3 text-base font-black">
+                      Loading movies...
+                    </p>
+                  )}
+                </div>
               )}
             </>
           )}

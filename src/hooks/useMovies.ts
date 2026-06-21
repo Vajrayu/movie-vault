@@ -16,6 +16,19 @@ async function fetchMovieBatch(pageToFetch: number) {
   return supabase.from('movies').select('*').range(from, to)
 }
 
+export async function searchLocalMovies(query: string) {
+  const trimmedQuery = query.trim()
+
+  if (!trimmedQuery) {
+    return { data: [], error: null }
+  }
+
+  return supabase
+    .from('movies')
+    .select('*')
+    .ilike('title', `%${trimmedQuery}%`)
+}
+
 export function useMovies() {
   const [movies, setMovies] = useState<Movie[]>([])
   const [loading, setLoading] = useState(true)
