@@ -1,5 +1,7 @@
 import Link from 'next/link'
 
+import { Poster } from '@/components/Poster'
+
 type MovieCardProps = {
   id: number | string
   title: string
@@ -22,10 +24,9 @@ export function MovieCard({
     >
       <article className="group relative overflow-hidden rounded-[1.25rem] border-[3px] border-[#111123] bg-white shadow-[6px_8px_0_#111123,0_16px_26px_rgba(17,17,35,0.18)] transition duration-300 ease-out hover:-translate-y-3 hover:rotate-[0.5deg] hover:scale-[1.035] hover:shadow-[10px_13px_0_#111123,0_28px_42px_rgba(17,17,35,0.24)]">
         <div className="relative m-2 mb-0 overflow-hidden rounded-[0.9rem] border-[3px] border-[#111123] bg-[#111123]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Poster
             src={poster_url}
-            alt={`${title} poster`}
+            title={title}
             className="aspect-[2/3] w-full rounded-[0.65rem] object-cover transition duration-300 ease-out group-hover:scale-105"
           />
           <div className="absolute inset-0 rounded-[0.65rem] bg-[linear-gradient(180deg,rgba(245,233,10,0)_50%,rgba(255,27,141,0.28)_100%)] opacity-0 transition duration-300 group-hover:opacity-100" />

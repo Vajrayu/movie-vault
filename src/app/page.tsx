@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import { MovieCard } from '@/components/MovieCard'
+import { Poster } from '@/components/Poster'
 import { useTMDBSearch } from '@/hooks/useTMDB'
 import {
   MOVIE_SORTS,
@@ -10,19 +11,20 @@ import {
   useLocalMovieSearch,
   useMovieCount,
   useMovies,
-  type MovieSort,
-  type WatchedFilter,
 } from '@/hooks/useMovies'
-import { homeState } from '@/lib/homeState'
+import {
+  getSavedScroll,
+  saveScroll,
+  setHomeState,
+  useHomeState,
+} from '@/lib/homeState'
 
 export default function Page() {
   const router = useRouter()
-  // Seeded from homeState so search, view, sort, filter and scroll survive a trip to a movie page.
-  const [query, setQuery] = useState(homeState.query)
-  const [tmdbQuery, setTmdbQuery] = useState(homeState.tmdbQuery)
-  const [viewMode, setViewMode] = useState(homeState.viewMode)
-  const [sort, setSort] = useState<MovieSort>(homeState.sort)
-  const [watched, setWatched] = useState<WatchedFilter>(homeState.watched)
+  // Search, view, sort and filter live in homeState so they survive visiting a movie,
+  // coming back, and reloading the tab.
+  const { query, tmdbQuery, viewMode, sort, watched } = useHomeState()
+  const [scrolled, setScrolled] = useState(false)
   const { movies, loading, hasMore, loadMore } = useMovies(sort, watched)
   const movieCount = useMovieCount(watched)
   const localSearch = useLocalMovieSearch(query, sort, watched)
@@ -42,31 +44,40 @@ export default function Page() {
       ? !localSearch.isPending
       : movies.length > 0 || !loading
 
-  useEffect(() => {
-    Object.assign(homeState, { query, tmdbQuery, viewMode, sort, watched })
-  }, [query, sort, tmdbQuery, viewMode, watched])
-
-  // Put the page back where it was once the (usually cached) movies have rendered,
-  // then keep recording the position for next time.
+  // Put the page back where it was once the movies have rendered. Coming back within
+  // the session the pages are cached; after a reload only the first page is there, so
+  // keep scrolling to the bottom (which triggers infinite scroll) until the saved
+  // position exists. Positions aren't recorded until the restore is done.
   useEffect(() => {
     if (!contentReady || scrollRestoredRef.current) {
       return
     }
 
-    scrollRestoredRef.current = true
-    window.scrollTo(0, homeState.scrollY)
-  }, [contentReady])
+    const target = getSavedScroll()
+    const maxScroll =
+      document.documentElement.scrollHeight - window.innerHeight
+    const canLoadMore = hasMore && !hasSearchQuery && !showGlobalResults
+
+    window.scrollTo(0, target)
+
+    if (target <= maxScroll || !canLoadMore) {
+      scrollRestoredRef.current = true
+    }
+  }, [contentReady, displayedMovies.length, hasMore, hasSearchQuery, showGlobalResults])
 
   useEffect(() => {
-    function saveScroll() {
+    function handleScroll() {
+      setScrolled(window.scrollY > 24)
+
       if (scrollRestoredRef.current) {
-        homeState.scrollY = window.scrollY
+        saveScroll(window.scrollY)
       }
     }
 
-    window.addEventListener('scroll', saveScroll, { passive: true })
+    handleScroll()
+    window.addEventListener('scroll', handleScroll, { passive: true })
 
-    return () => window.removeEventListener('scroll', saveScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
   useEffect(() => {
@@ -95,7 +106,7 @@ export default function Page() {
   }, [hasMore, hasSearchQuery, loadMore, loading, showGlobalResults])
 
   function handleFindMovie() {
-    setTmdbQuery(query.trim())
+    setHomeState({ tmdbQuery: query.trim() })
   }
 
   function countLabel() {
@@ -174,10 +185,9 @@ export default function Page() {
               className="vault-panel flex w-full items-center gap-4 p-3 text-left transition duration-200 hover:-translate-y-1 sm:gap-5 sm:p-4"
             >
               <div className="h-28 w-20 shrink-0 overflow-hidden rounded-xl border-[3px] border-[#111123] bg-[#111123] sm:h-32 sm:w-24">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <Poster
                   src={posterUrl}
-                  alt={`${title} poster`}
+                  title={title}
                   className="h-full w-full object-cover"
                 />
               </div>
@@ -249,10 +259,9 @@ export default function Page() {
               className="vault-panel flex w-full items-center gap-4 p-3 text-left transition duration-200 hover:-translate-y-1 sm:gap-5 sm:p-4"
             >
               <div className="h-28 w-20 shrink-0 overflow-hidden rounded-xl border-[3px] border-[#111123] bg-[#111123] sm:h-32 sm:w-24">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <Poster
                   src={posterUrl}
-                  alt={`${movie.title} poster`}
+                  title={movie.title}
                   className="h-full w-full object-cover"
                 />
               </div>
@@ -280,9 +289,18 @@ export default function Page() {
 
   return (
     <main className="min-h-screen text-[#111123]">
-      <section className="border-b-[5px] border-[#111123] bg-white px-4 py-4 sm:px-6 lg:px-8">
+      <section
+        className={`sticky top-0 z-40 border-b-[5px] border-[#111123] bg-white px-4 transition-[padding,box-shadow] duration-200 sm:px-6 lg:px-8 ${
+          scrolled
+            ? 'py-2.5 shadow-[0_6px_0_rgba(17,17,35,0.12),0_14px_28px_rgba(17,17,35,0.16)]'
+            : 'py-4'
+        }`}
+      >
         <nav className="vault-shell grid items-center gap-4 lg:grid-cols-[1fr_minmax(240px,440px)_1fr]">
-          <div className="flex items-center gap-3">
+          {/* On small screens the brand hides once scrolled, so the sticky bar stays short. */}
+          <div
+            className={`items-center gap-3 ${scrolled ? 'hidden lg:flex' : 'flex'}`}
+          >
             <div className="relative h-14 w-14 rotate-[-5deg] rounded-2xl border-[3px] border-[#111123] bg-white shadow-[4px_5px_0_#111123]">
               <div className="absolute left-3 top-3 h-7 w-7 rounded-md border-[3px] border-[#111123] bg-[#19c9ff]" />
               <div className="absolute right-1 top-0 flex h-5 w-5 items-center justify-center rounded-full border-[3px] border-[#111123] bg-[#fff70d] text-[10px] font-black">
@@ -303,10 +321,9 @@ export default function Page() {
             <input
               type="search"
               value={query}
-              onChange={(event) => {
-                setQuery(event.target.value)
-                setTmdbQuery('')
-              }}
+              onChange={(event) =>
+                setHomeState({ query: event.target.value, tmdbQuery: '' })
+              }
               placeholder="Filter your movies..."
               className="min-w-0 flex-1 bg-transparent text-sm font-black text-[#111123] outline-none placeholder:text-[#111123]/45"
             />
@@ -321,7 +338,7 @@ export default function Page() {
                 <button
                   key={mode}
                   type="button"
-                  onClick={() => setViewMode(mode)}
+                  onClick={() => setHomeState({ viewMode: mode })}
                   aria-label={`${mode} view`}
                   className={`flex h-14 w-14 items-center justify-center rounded-2xl border-[3px] border-[#111123] text-sm font-black uppercase shadow-[4px_5px_0_#111123] transition duration-200 ${
                     isActive
@@ -413,8 +430,12 @@ export default function Page() {
 
                 {!showGlobalResults && (
                   <div className="flex flex-wrap gap-3">
-                    {renderSelect('Show', watched, WATCHED_FILTERS, setWatched)}
-                    {renderSelect('Sort', sort, MOVIE_SORTS, setSort)}
+                    {renderSelect('Show', watched, WATCHED_FILTERS, (value) =>
+                      setHomeState({ watched: value })
+                    )}
+                    {renderSelect('Sort', sort, MOVIE_SORTS, (value) =>
+                      setHomeState({ sort: value })
+                    )}
                   </div>
                 )}
               </div>

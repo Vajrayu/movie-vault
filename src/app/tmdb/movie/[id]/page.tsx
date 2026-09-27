@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
+import { useToast } from '@/components/Toast'
 import { MOVIES_QUERY_KEY } from '@/hooks/useMovies'
 import { getMovieDetails, type TMDBMovieDetails } from '@/hooks/useTMDB'
 import { supabase } from '@/lib/supabase'
@@ -13,13 +14,13 @@ export default function TMDBMoviePage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
   const queryClient = useQueryClient()
+  const showToast = useToast()
   const tmdbId = Number(params.id)
   const isValidTmdbId = Number.isFinite(tmdbId)
   const [movie, setMovie] = useState<TMDBMovieDetails | null>(null)
   const [loading, setLoading] = useState(isValidTmdbId)
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(false)
-  const [addMessage, setAddMessage] = useState('')
 
   useEffect(() => {
     let isMounted = true
@@ -63,7 +64,6 @@ export default function TMDBMoviePage() {
     }
 
     setAdding(true)
-    setAddMessage('')
 
     const { data: existingMovie, error: existingMovieError } = await supabase
       .from('movies')
@@ -72,12 +72,13 @@ export default function TMDBMoviePage() {
       .maybeSingle()
 
     if (existingMovieError) {
-      setAddMessage('Could not add movie.')
+      showToast('Could not add movie. Try again.', 'error')
       setAdding(false)
       return
     }
 
     if (existingMovie) {
+      showToast(`${movie.title} is already in your vault`)
       router.push(`/movie/${existingMovie.id}`)
       return
     }
@@ -98,12 +99,13 @@ export default function TMDBMoviePage() {
       .single()
 
     if (insertError || !insertedMovie) {
-      setAddMessage('Could not add movie.')
+      showToast('Could not add movie. Try again.', 'error')
       setAdding(false)
       return
     }
 
     void queryClient.invalidateQueries({ queryKey: MOVIES_QUERY_KEY })
+    showToast(`Added ${movie.title} to your vault`)
     router.push(`/movie/${insertedMovie.id}`)
   }
 
@@ -248,12 +250,6 @@ export default function TMDBMoviePage() {
               >
                 {adding ? 'Adding...' : 'Add To Vault'}
               </button>
-
-              {addMessage && (
-                <p className="vault-chip bg-[#7c3aed] text-white">
-                  {addMessage}
-                </p>
-              )}
             </div>
           </section>
         </div>

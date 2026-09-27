@@ -1,7 +1,9 @@
--- One-off cleanup of duplicate rows in `movies` (generated 2026-09-27 from a snapshot of 538 rows).
+-- One-off cleanup of duplicate rows in `movies` (regenerated 2026-09-27 from a snapshot of 538 rows).
 -- 102 duplicate groups, 107 rows removed. In each group the row with the most
 -- of your data (watched / rating / notes / metadata) is kept, and any empty fields are filled in from its copies.
--- Run the whole file in Supabase > SQL Editor. It runs as one transaction, so if any statement fails nothing changes.
+-- The duplicates come from the same movie list being imported twice, not from the app.
+-- HOW TO RUN: Supabase dashboard > SQL Editor > New query > paste this whole file > Run.
+-- It runs as one transaction, so if any statement fails nothing changes.
 
 begin;
 

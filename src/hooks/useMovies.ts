@@ -152,31 +152,60 @@ export function useLocalMovieSearch(
   })
 }
 
-// Call after a movie is saved: patches it into every cached list straight away (so going
-// back shows the edit with no flash), then refetches in the background in case the edit
-// changed where the movie sorts.
-export function syncSavedMovie(queryClient: QueryClient, savedMovie: Movie) {
-  const replace = (movie: Movie) =>
-    movie.id === savedMovie.id ? savedMovie : movie
+function matchesWatched(movie: Movie, watched: WatchedFilter) {
+  if (watched === 'watched') {
+    return movie.watched === true
+  }
 
-  queryClient.setQueriesData<InfiniteData<Movie[]> | Movie[] | number>(
-    { queryKey: MOVIES_QUERY_KEY },
-    (cached) => {
-      if (!cached) {
-        return cached
-      }
+  if (watched === 'unwatched') {
+    return movie.watched !== true
+  }
 
-      if (typeof cached === 'number') {
-        return cached
-      }
+  return true
+}
 
-      if (Array.isArray(cached)) {
-        return cached.map(replace)
-      }
-
-      return { ...cached, pages: cached.pages.map((page) => page.map(replace)) }
+// Call after a movie is saved. Updates every cached list straight away, so going back
+// shows the edit with no flash: the movie is patched in place, dropped from lists whose
+// watched filter it no longer matches, and filter counts are adjusted. Then everything
+// refetches in the background (a movie that now matches a filter, or sorts elsewhere,
+// shows up in the right place once that lands).
+export function syncSavedMovie(
+  queryClient: QueryClient,
+  previousMovie: Movie,
+  savedMovie: Movie
+) {
+  // Every key under MOVIES_QUERY_KEY ends with its watched filter:
+  // ['movies', 'list', sort, watched], ['movies', 'search', query, sort, watched],
+  // ['movies', 'count', watched].
+  for (const [queryKey, cached] of queryClient.getQueriesData<
+    InfiniteData<Movie[]> | Movie[] | number
+  >({ queryKey: MOVIES_QUERY_KEY })) {
+    if (cached == null) {
+      continue
     }
-  )
+
+    const watched = queryKey[queryKey.length - 1] as WatchedFilter
+    const keep = matchesWatched(savedMovie, watched)
+    const update = (movies: Movie[]) =>
+      movies.flatMap((movie) =>
+        movie.id !== savedMovie.id ? [movie] : keep ? [savedMovie] : []
+      )
+
+    if (typeof cached === 'number') {
+      const before = matchesWatched(previousMovie, watched)
+
+      if (before !== keep) {
+        queryClient.setQueryData(queryKey, cached + (keep ? 1 : -1))
+      }
+    } else if (Array.isArray(cached)) {
+      queryClient.setQueryData(queryKey, update(cached))
+    } else {
+      queryClient.setQueryData(queryKey, {
+        ...cached,
+        pages: cached.pages.map(update),
+      })
+    }
+  }
 
   void queryClient.invalidateQueries({ queryKey: MOVIES_QUERY_KEY })
 }

@@ -7,6 +7,8 @@ import { useParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import type { PostgrestError } from '@supabase/supabase-js'
 
+import { Poster } from '@/components/Poster'
+import { useToast } from '@/components/Toast'
 import { syncSavedMovie, type Movie } from '@/hooks/useMovies'
 import { supabase } from '@/lib/supabase'
 
@@ -76,6 +78,7 @@ export default function MoviePage() {
   const params = useParams<{ id: string }>()
   const id = params.id
   const queryClient = useQueryClient()
+  const showToast = useToast()
   const [movie, setMovie] = useState<Movie | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<PostgrestError | null>(null)
@@ -85,7 +88,6 @@ export default function MoviePage() {
   const [mood, setMood] = useState('loved')
   const [rewatchable, setRewatchable] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [saveMessage, setSaveMessage] = useState('')
 
   useEffect(() => {
     let isMounted = true
@@ -127,7 +129,6 @@ export default function MoviePage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSaving(true)
-    setSaveMessage('')
 
     const ratingValue = userRating === '' ? null : Number(userRating)
     const { data, error } = await supabase
@@ -142,14 +143,14 @@ export default function MoviePage() {
       .single()
 
     if (error) {
-      setSaveMessage('Could not save changes.')
+      showToast('Could not save changes. Try again.', 'error')
     } else {
       setMovie(data)
       setUserRating(data.user_rating == null ? '' : String(data.user_rating))
       setNotes(data.notes == null ? '' : String(data.notes))
       setWatched(data.watched === true)
-      setSaveMessage('Changes saved.')
-      syncSavedMovie(queryClient, data)
+      showToast(`Saved ${String(data.title ?? 'movie')}`)
+      syncSavedMovie(queryClient, movie ?? data, data)
     }
 
     setSaving(false)
@@ -309,10 +310,9 @@ export default function MoviePage() {
 
       <article className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[minmax(280px,430px)_1fr] lg:items-start lg:gap-10">
         <div className="relative h-fit rotate-[-1.5deg] overflow-hidden rounded-[1.35rem] border-[3px] border-[#111123] bg-white p-2 shadow-[10px_12px_0_#111123,0_24px_40px_rgba(17,17,35,0.23)]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Poster
             src={posterUrl}
-            alt={`${title} poster`}
+            title={title}
             className="aspect-[2/3] w-full rounded-[1rem] border-[3px] border-[#111123] object-cover"
           />
           <div className="absolute right-[-0.75rem] top-[-0.75rem] flex h-16 w-16 rotate-[8deg] items-center justify-center rounded-full border-[3px] border-[#111123] bg-[#19c9ff] text-xl font-black shadow-[5px_6px_0_#111123]">
@@ -499,12 +499,6 @@ export default function MoviePage() {
                 >
                   {saving ? 'Saving...' : 'Save changes'}
                 </button>
-
-                {saveMessage && (
-                  <p className="vault-chip bg-[#7c3aed] text-white">
-                    {saveMessage}
-                  </p>
-                )}
               </div>
             </div>
           </form>
