@@ -1,95 +1,128 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import type { PostgrestError } from '@supabase/supabase-js'
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+  type InfiniteData,
+  type QueryClient,
+} from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabase'
 
 export type Movie = Record<string, unknown>
 
+export type MovieSort = 'title' | 'recent' | 'rating' | 'year'
+
+export const MOVIE_SORTS: { id: MovieSort; label: string }[] = [
+  { id: 'title', label: 'Name (A–Z)' },
+  { id: 'recent', label: 'Recently added' },
+  { id: 'rating', label: 'Your rating' },
+  { id: 'year', label: 'Release year' },
+]
+
 const PAGE_SIZE = 20
 
-async function fetchMovieBatch(pageToFetch: number) {
+// Every query under this key holds movie rows; used to patch or refetch them after an edit.
+export const MOVIES_QUERY_KEY = ['movies'] as const
+
+// Without an explicit order Postgres returns rows in physical order, which shifts
+// whenever a row is updated, so paginated results skip and repeat movies.
+// `id` is the tiebreaker that keeps pages stable (and stands in for "date added").
+function orderedMovies(sort: MovieSort) {
+  const query = supabase.from('movies').select('*')
+
+  switch (sort) {
+    case 'recent':
+      return query.order('id', { ascending: false })
+    case 'rating':
+      return query
+        .order('user_rating', { ascending: false, nullsFirst: false })
+        .order('title', { ascending: true })
+        .order('id', { ascending: true })
+    case 'year':
+      return query
+        .order('year', { ascending: false, nullsFirst: false })
+        .order('title', { ascending: true })
+        .order('id', { ascending: true })
+    default:
+      return query.order('title', { ascending: true }).order('id', { ascending: true })
+  }
+}
+
+async function fetchMovieBatch(sort: MovieSort, pageToFetch: number) {
   const from = pageToFetch * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
+  const { data, error } = await orderedMovies(sort).range(from, to)
 
-  return supabase.from('movies').select('*').range(from, to)
-}
-
-export async function searchLocalMovies(query: string) {
-  const trimmedQuery = query.trim()
-
-  if (!trimmedQuery) {
-    return { data: [], error: null }
+  if (error) {
+    throw error
   }
 
-  return supabase
-    .from('movies')
-    .select('*')
-    .ilike('title', `%${trimmedQuery}%`)
+  return (data ?? []) as Movie[]
 }
 
-export function useMovies() {
-  const [movies, setMovies] = useState<Movie[]>([])
-  const [loading, setLoading] = useState(true)
-  const [hasMore, setHasMore] = useState(true)
-  const [page, setPage] = useState(0)
-  const [error, setError] = useState<PostgrestError | null>(null)
+export function useMovies(sort: MovieSort) {
+  const query = useInfiniteQuery({
+    queryKey: [...MOVIES_QUERY_KEY, 'list', sort],
+    queryFn: ({ pageParam }) => fetchMovieBatch(sort, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length === PAGE_SIZE ? allPages.length : undefined,
+  })
 
-  useEffect(() => {
-    let isMounted = true
+  return {
+    movies: query.data?.pages.flat() ?? [],
+    loading: query.isPending || query.isFetchingNextPage,
+    hasMore: query.hasNextPage,
+    error: query.error,
+    loadMore: query.fetchNextPage,
+  }
+}
 
-    async function loadInitialMovies() {
-      const { data, error } = await fetchMovieBatch(0)
+export function useLocalMovieSearch(searchQuery: string, sort: MovieSort) {
+  const trimmedQuery = searchQuery.trim()
 
-      if (!isMounted) {
-        return
-      }
+  return useQuery({
+    queryKey: [...MOVIES_QUERY_KEY, 'search', trimmedQuery, sort],
+    queryFn: async () => {
+      const { data, error } = await orderedMovies(sort).ilike(
+        'title',
+        `%${trimmedQuery}%`
+      )
 
       if (error) {
-        setError(error)
-      } else {
-        const batch = data ?? []
-
-        setMovies(batch)
-        setHasMore(batch.length === PAGE_SIZE)
-        setPage(0)
+        throw error
       }
 
-      setLoading(false)
+      return (data ?? []) as Movie[]
+    },
+    enabled: trimmedQuery.length > 0,
+    placeholderData: keepPreviousData,
+  })
+}
+
+// Call after a movie is saved: patches it into every cached list straight away (so going
+// back shows the edit with no flash), then refetches in the background in case the edit
+// changed where the movie sorts.
+export function syncSavedMovie(queryClient: QueryClient, savedMovie: Movie) {
+  const replace = (movie: Movie) =>
+    movie.id === savedMovie.id ? savedMovie : movie
+
+  queryClient.setQueriesData<InfiniteData<Movie[]> | Movie[]>(
+    { queryKey: MOVIES_QUERY_KEY },
+    (cached) => {
+      if (!cached) {
+        return cached
+      }
+
+      if (Array.isArray(cached)) {
+        return cached.map(replace)
+      }
+
+      return { ...cached, pages: cached.pages.map((page) => page.map(replace)) }
     }
+  )
 
-    loadInitialMovies()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
-
-  const loadMore = useCallback(async () => {
-    if (loading || !hasMore) {
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    const nextPage = page + 1
-    const { data, error } = await fetchMovieBatch(nextPage)
-
-    if (error) {
-      setError(error)
-      setLoading(false)
-      return
-    }
-
-    const batch = data ?? []
-
-    setMovies((currentMovies) => [...currentMovies, ...batch])
-    setHasMore(batch.length === PAGE_SIZE)
-    setPage(nextPage)
-    setLoading(false)
-  }, [hasMore, loading, page])
-
-  return { movies, loading, hasMore, page, error, loadMore }
+  void queryClient.invalidateQueries({ queryKey: MOVIES_QUERY_KEY })
 }

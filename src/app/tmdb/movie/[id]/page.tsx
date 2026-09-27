@@ -3,13 +3,16 @@
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 
+import { MOVIES_QUERY_KEY } from '@/hooks/useMovies'
 import { getMovieDetails, type TMDBMovieDetails } from '@/hooks/useTMDB'
 import { supabase } from '@/lib/supabase'
 
 export default function TMDBMoviePage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const tmdbId = Number(params.id)
   const isValidTmdbId = Number.isFinite(tmdbId)
   const [movie, setMovie] = useState<TMDBMovieDetails | null>(null)
@@ -100,6 +103,7 @@ export default function TMDBMoviePage() {
       return
     }
 
+    void queryClient.invalidateQueries({ queryKey: MOVIES_QUERY_KEY })
     router.push(`/movie/${insertedMovie.id}`)
   }
 
@@ -145,6 +149,7 @@ export default function TMDBMoviePage() {
 
   return (
     <main className="vault-page py-8 sm:py-10">
+      <title>{`${movie.title} · Movie Vault`}</title>
       <div className="mx-auto flex max-w-7xl flex-wrap gap-3">
         <button
           type="button"
@@ -153,7 +158,7 @@ export default function TMDBMoviePage() {
         >
           Back to Search
         </button>
-        <Link href="/" className="vault-button bg-white">
+        <Link href="/" scroll={false} className="vault-button bg-white">
           Back to movies
         </Link>
       </div>

@@ -4,11 +4,11 @@ import Link from 'next/link'
 import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import type { PostgrestError } from '@supabase/supabase-js'
 
+import { syncSavedMovie, type Movie } from '@/hooks/useMovies'
 import { supabase } from '@/lib/supabase'
-
-type Movie = Record<string, unknown>
 
 function getFirstMovieValue(movie: Movie, keys: string[]) {
   for (const key of keys) {
@@ -75,6 +75,7 @@ function normalizePlatformValue(value: unknown): string[] {
 export default function MoviePage() {
   const params = useParams<{ id: string }>()
   const id = params.id
+  const queryClient = useQueryClient()
   const [movie, setMovie] = useState<Movie | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<PostgrestError | null>(null)
@@ -148,6 +149,7 @@ export default function MoviePage() {
       setNotes(data.notes == null ? '' : String(data.notes))
       setWatched(data.watched === true)
       setSaveMessage('Changes saved.')
+      syncSavedMovie(queryClient, data)
     }
 
     setSaving(false)
@@ -291,9 +293,10 @@ export default function MoviePage() {
 
   return (
     <main className="vault-page py-8 sm:py-10">
+      <title>{`${title} · Movie Vault`}</title>
       <div className="mx-auto max-w-7xl">
         <div className="mb-7 flex flex-wrap gap-3">
-          <Link href="/" className="vault-button rotate-[-1deg] bg-white">
+          <Link href="/" scroll={false} className="vault-button rotate-[-1deg] bg-white">
             Back to movies
           </Link>
           {tmdbId && (

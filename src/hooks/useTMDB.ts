@@ -1,5 +1,7 @@
 'use client'
 
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+
 export type TMDBMovie = {
   id: number
   title: string
@@ -71,10 +73,7 @@ function getTMDBRequestInit(apiKey: string): {
 export async function searchMovies(query: string): Promise<TMDBMovie[]> {
   const trimmedQuery = query.trim()
 
-  console.log('[TMDB search] searchMovies called', { query: trimmedQuery })
-
   if (!trimmedQuery) {
-    console.log('[TMDB search] searchMovies returning empty results for empty query')
     return []
   }
 
@@ -87,52 +86,24 @@ export async function searchMovies(query: string): Promise<TMDBMovie[]> {
   const { searchParams, requestInit } = getTMDBRequestInit(apiKey)
   searchParams.set('query', trimmedQuery)
 
-  console.log('[TMDB search] Requesting TMDB search', {
-    query: trimmedQuery,
-    authMode: apiKey.startsWith('eyJ') ? 'bearer' : 'api_key',
-  })
-
   const response = await fetch(
     `https://api.themoviedb.org/3/search/movie?${searchParams.toString()}`,
     requestInit
   )
-
-  console.log('[TMDB search] TMDB response received', {
-    ok: response.ok,
-    status: response.status,
-  })
 
   if (!response.ok) {
     throw new Error('Failed to search TMDB movies')
   }
 
   const data = (await response.json()) as TMDBSearchResponse
-  console.log('[TMDB search] TMDB API response body', {
-    page: data.page,
-    totalPages: data.total_pages,
-    totalResults: data.total_results,
-    rawResultsCount: data.results?.length ?? 0,
-    sampleResults: data.results?.slice(0, 3).map((movie) => ({
-      id: movie.id,
-      title: movie.title,
-      release_date: movie.release_date,
-      poster_path: movie.poster_path,
-    })),
-  })
 
-  const results = (data.results ?? []).map((movie) => ({
+  return (data.results ?? []).map((movie) => ({
     id: movie.id,
     title: movie.title ?? '',
     poster_path: movie.poster_path ?? null,
     release_date: movie.release_date ?? '',
     overview: movie.overview ?? '',
   }))
-
-  console.log('[TMDB search] searchMovies returning results', {
-    count: results.length,
-  })
-
-  return results
 }
 
 export async function getMovieDetails(id: number): Promise<TMDBMovieDetails> {
@@ -174,4 +145,13 @@ export async function getMovieDetails(id: number): Promise<TMDBMovieDetails> {
         .map((person) => person.name ?? '')
         .filter((name) => name.trim() !== '') ?? [],
   }
+}
+
+export function useTMDBSearch(query: string) {
+  return useQuery({
+    queryKey: ['tmdb-search', query],
+    queryFn: () => searchMovies(query),
+    enabled: query.length > 0,
+    placeholderData: keepPreviousData,
+  })
 }

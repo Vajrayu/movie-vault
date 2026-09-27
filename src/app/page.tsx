@@ -3,57 +3,66 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import { MovieCard } from '@/components/MovieCard'
-import { searchMovies } from '@/hooks/useTMDB'
-import { searchLocalMovies, useMovies, type Movie } from '@/hooks/useMovies'
+import { useTMDBSearch } from '@/hooks/useTMDB'
+import {
+  MOVIE_SORTS,
+  useLocalMovieSearch,
+  useMovies,
+  type MovieSort,
+} from '@/hooks/useMovies'
+import { homeState } from '@/lib/homeState'
 
 export default function Page() {
   const router = useRouter()
-  const { movies, loading, hasMore, loadMore } = useMovies()
-  const [query, setQuery] = useState('')
-  const [showGlobalResults, setShowGlobalResults] = useState(false)
-  const [globalResults, setGlobalResults] = useState<
-    Awaited<ReturnType<typeof searchMovies>>
-  >([])
-  const [globalLoading, setGlobalLoading] = useState(false)
-  const [localSearchResults, setLocalSearchResults] = useState<Movie[]>([])
-  const [localSearchLoading, setLocalSearchLoading] = useState(false)
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const tmdbSearchRequestId = useRef(0)
-  const localSearchRequestId = useRef(0)
+  // Seeded from homeState so search, view, sort and scroll survive a trip to a movie page.
+  const [query, setQuery] = useState(homeState.query)
+  const [tmdbQuery, setTmdbQuery] = useState(homeState.tmdbQuery)
+  const [viewMode, setViewMode] = useState(homeState.viewMode)
+  const [sort, setSort] = useState<MovieSort>(homeState.sort)
+  const { movies, loading, hasMore, loadMore } = useMovies(sort)
+  const localSearch = useLocalMovieSearch(query, sort)
+  const tmdbSearch = useTMDBSearch(tmdbQuery)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  const scrollRestoredRef = useRef(false)
   const hasSearchQuery = query.trim().length > 0
+  const showGlobalResults = tmdbQuery.length > 0
+  const globalResults = tmdbSearch.data ?? []
+  const globalLoading = tmdbSearch.isFetching
+  const localSearchResults = localSearch.data ?? []
+  const localSearchLoading = localSearch.isPending
   const displayedMovies = hasSearchQuery ? localSearchResults : movies
+  const contentReady = showGlobalResults
+    ? !tmdbSearch.isPending
+    : hasSearchQuery
+      ? !localSearch.isPending
+      : movies.length > 0 || !loading
 
   useEffect(() => {
-    const trimmedQuery = query.trim()
+    Object.assign(homeState, { query, tmdbQuery, viewMode, sort })
+  }, [query, sort, tmdbQuery, viewMode])
 
-    if (!trimmedQuery) {
+  // Put the page back where it was once the (usually cached) movies have rendered,
+  // then keep recording the position for next time.
+  useEffect(() => {
+    if (!contentReady || scrollRestoredRef.current) {
       return
     }
 
-    const requestId = localSearchRequestId.current + 1
-    localSearchRequestId.current = requestId
+    scrollRestoredRef.current = true
+    window.scrollTo(0, homeState.scrollY)
+  }, [contentReady])
 
-    async function loadLocalSearchResults() {
-      setLocalSearchLoading(true)
-
-      const { data, error } = await searchLocalMovies(trimmedQuery)
-
-      if (requestId !== localSearchRequestId.current) {
-        return
+  useEffect(() => {
+    function saveScroll() {
+      if (scrollRestoredRef.current) {
+        homeState.scrollY = window.scrollY
       }
-
-      if (error) {
-        setLocalSearchResults([])
-      } else {
-        setLocalSearchResults(data ?? [])
-      }
-
-      setLocalSearchLoading(false)
     }
 
-    loadLocalSearchResults()
-  }, [query])
+    window.addEventListener('scroll', saveScroll, { passive: true })
+
+    return () => window.removeEventListener('scroll', saveScroll)
+  }, [])
 
   useEffect(() => {
     if (hasSearchQuery || showGlobalResults || loading || !hasMore) {
@@ -80,67 +89,8 @@ export default function Page() {
     return () => observer.disconnect()
   }, [hasMore, hasSearchQuery, loadMore, loading, showGlobalResults])
 
-  async function handleFindMovie() {
-    const trimmedQuery = query.trim()
-
-    console.log('[TMDB search] Find this movie button clicked', {
-      query: trimmedQuery,
-    })
-
-    if (!trimmedQuery) {
-      console.log('[TMDB search] Skipping TMDB search because query is empty')
-      return
-    }
-
-    const requestId = tmdbSearchRequestId.current + 1
-    tmdbSearchRequestId.current = requestId
-
-    setGlobalLoading(true)
-    setShowGlobalResults(true)
-
-    try {
-      console.log('[TMDB search] Calling searchMovies(query)', {
-        query: trimmedQuery,
-      })
-      const results = await searchMovies(trimmedQuery)
-
-      if (requestId !== tmdbSearchRequestId.current) {
-        return
-      }
-
-      console.log('[TMDB search] Storing TMDB results in state', {
-        count: results.length,
-        sampleResults: results.slice(0, 3).map((movie) => ({
-          id: movie.id,
-          title: movie.title,
-          release_date: movie.release_date,
-        })),
-      })
-      setGlobalResults(results)
-    } catch (error) {
-      if (requestId !== tmdbSearchRequestId.current) {
-        return
-      }
-
-      console.error('[TMDB search] Failed to load TMDB results', error)
-      setGlobalResults([])
-    } finally {
-      if (requestId === tmdbSearchRequestId.current) {
-        setGlobalLoading(false)
-      }
-    }
-  }
-
-  if (showGlobalResults) {
-    console.log('[TMDB search] Results state before rendering', {
-      count: globalResults.length,
-      loading: globalLoading,
-      results: globalResults.slice(0, 3).map((movie) => ({
-        id: movie.id,
-        title: movie.title,
-        release_date: movie.release_date,
-      })),
-    })
+  function handleFindMovie() {
+    setTmdbQuery(query.trim())
   }
 
   function renderLocalGrid() {
@@ -310,16 +260,8 @@ export default function Page() {
               type="search"
               value={query}
               onChange={(event) => {
-                const nextQuery = event.target.value
-
-                tmdbSearchRequestId.current += 1
-                localSearchRequestId.current += 1
-                setQuery(nextQuery)
-                setShowGlobalResults(false)
-                setGlobalResults([])
-                setGlobalLoading(false)
-                setLocalSearchResults([])
-                setLocalSearchLoading(nextQuery.trim().length > 0)
+                setQuery(event.target.value)
+                setTmdbQuery('')
               }}
               placeholder="Filter your movies..."
               className="min-w-0 flex-1 bg-transparent text-sm font-black text-[#111123] outline-none placeholder:text-[#111123]/45"
@@ -420,11 +362,30 @@ export default function Page() {
             </p>
           ) : (
             <>
-              <p className="pl-1 text-sm font-black uppercase tracking-normal text-[#111123] sm:text-base">
-                {showGlobalResults
-                  ? `${globalResults.length} TMDB results`
-                  : `${displayedMovies.length} movies`}
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <p className="pl-1 text-sm font-black uppercase tracking-normal text-[#111123] sm:text-base">
+                  {showGlobalResults
+                    ? `${globalResults.length} TMDB results`
+                    : `${displayedMovies.length} movies`}
+                </p>
+
+                {!showGlobalResults && (
+                  <label className="flex items-center gap-3 rounded-2xl border-[3px] border-[#111123] bg-white py-2 pl-4 pr-2 shadow-[4px_5px_0_#111123]">
+                    <span className="text-xs font-black uppercase">Sort</span>
+                    <select
+                      value={sort}
+                      onChange={(event) => setSort(event.target.value as MovieSort)}
+                      className="cursor-pointer bg-transparent text-sm font-black text-[#111123] outline-none"
+                    >
+                      {MOVIE_SORTS.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </div>
 
               {showGlobalResults ? (
                 globalLoading ? (
