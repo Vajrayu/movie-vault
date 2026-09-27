@@ -75,7 +75,7 @@ Last reviewed 2026-09-27, after the sorting / filter / list-state fixes were dep
 
 **Product gaps against the spec**
 5. **Mood and Rewatchable don't save.** They're UI-only state on the detail page. They aren't loaded from or written to Supabase, and mood always resets to "loved". Needs columns (`mood`, `rewatchable`) plus load/save wiring. Mood filter/sort depends on this.
-6. **Rating scale mismatch:** ratings are stored out of 10 but the detail page's picker is 1–5 stars, so a 7 or 8 shows as 5 stars and saving rewrites it to /5.
+6. **Rating scale mismatch:** ratings are stored out of 10 but the detail page's picker is 1–5 stars, so a 7 or 8 shows as 5 stars, and clicking a star saves a 1–5 value over the /10 one.
 7. **Search is one mode.** The brief describes a Search/Find toggle. The build does local filter first, then a "Search on TMDB" link.
 8. **"Recently added" sorts by `id`,** because most rows have no `created_at`.
 
