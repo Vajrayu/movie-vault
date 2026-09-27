@@ -6,21 +6,26 @@ import { MovieCard } from '@/components/MovieCard'
 import { useTMDBSearch } from '@/hooks/useTMDB'
 import {
   MOVIE_SORTS,
+  WATCHED_FILTERS,
   useLocalMovieSearch,
+  useMovieCount,
   useMovies,
   type MovieSort,
+  type WatchedFilter,
 } from '@/hooks/useMovies'
 import { homeState } from '@/lib/homeState'
 
 export default function Page() {
   const router = useRouter()
-  // Seeded from homeState so search, view, sort and scroll survive a trip to a movie page.
+  // Seeded from homeState so search, view, sort, filter and scroll survive a trip to a movie page.
   const [query, setQuery] = useState(homeState.query)
   const [tmdbQuery, setTmdbQuery] = useState(homeState.tmdbQuery)
   const [viewMode, setViewMode] = useState(homeState.viewMode)
   const [sort, setSort] = useState<MovieSort>(homeState.sort)
-  const { movies, loading, hasMore, loadMore } = useMovies(sort)
-  const localSearch = useLocalMovieSearch(query, sort)
+  const [watched, setWatched] = useState<WatchedFilter>(homeState.watched)
+  const { movies, loading, hasMore, loadMore } = useMovies(sort, watched)
+  const movieCount = useMovieCount(watched)
+  const localSearch = useLocalMovieSearch(query, sort, watched)
   const tmdbSearch = useTMDBSearch(tmdbQuery)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const scrollRestoredRef = useRef(false)
@@ -38,8 +43,8 @@ export default function Page() {
       : movies.length > 0 || !loading
 
   useEffect(() => {
-    Object.assign(homeState, { query, tmdbQuery, viewMode, sort })
-  }, [query, sort, tmdbQuery, viewMode])
+    Object.assign(homeState, { query, tmdbQuery, viewMode, sort, watched })
+  }, [query, sort, tmdbQuery, viewMode, watched])
 
   // Put the page back where it was once the (usually cached) movies have rendered,
   // then keep recording the position for next time.
@@ -91,6 +96,45 @@ export default function Page() {
 
   function handleFindMovie() {
     setTmdbQuery(query.trim())
+  }
+
+  function countLabel() {
+    const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+    if (showGlobalResults) {
+      return plural(globalResults.length, 'TMDB result')
+    }
+
+    if (hasSearchQuery) {
+      return plural(localSearchResults.length, 'match')
+    }
+
+    // Until the count arrives, fall back to what's loaded rather than showing nothing.
+    return plural(movieCount.data ?? movies.length, 'movie')
+  }
+
+  function renderSelect<T extends string>(
+    label: string,
+    value: T,
+    options: { id: T; label: string }[],
+    onChange: (value: T) => void
+  ) {
+    return (
+      <label className="flex items-center gap-3 rounded-2xl border-[3px] border-[#111123] bg-white py-2 pl-4 pr-2 shadow-[4px_5px_0_#111123]">
+        <span className="text-xs font-black uppercase">{label}</span>
+        <select
+          value={value}
+          onChange={(event) => onChange(event.target.value as T)}
+          className="cursor-pointer bg-transparent text-sm font-black text-[#111123] outline-none"
+        >
+          {options.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    )
   }
 
   function renderLocalGrid() {
@@ -364,26 +408,14 @@ export default function Page() {
             <>
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <p className="pl-1 text-sm font-black uppercase tracking-normal text-[#111123] sm:text-base">
-                  {showGlobalResults
-                    ? `${globalResults.length} TMDB results`
-                    : `${displayedMovies.length} movies`}
+                  {countLabel()}
                 </p>
 
                 {!showGlobalResults && (
-                  <label className="flex items-center gap-3 rounded-2xl border-[3px] border-[#111123] bg-white py-2 pl-4 pr-2 shadow-[4px_5px_0_#111123]">
-                    <span className="text-xs font-black uppercase">Sort</span>
-                    <select
-                      value={sort}
-                      onChange={(event) => setSort(event.target.value as MovieSort)}
-                      className="cursor-pointer bg-transparent text-sm font-black text-[#111123] outline-none"
-                    >
-                      {MOVIE_SORTS.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <div className="flex flex-wrap gap-3">
+                    {renderSelect('Show', watched, WATCHED_FILTERS, setWatched)}
+                    {renderSelect('Sort', sort, MOVIE_SORTS, setSort)}
+                  </div>
                 )}
               </div>
 

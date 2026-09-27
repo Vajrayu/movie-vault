@@ -11,7 +11,7 @@ The original brief is `docs/IA.md`, the feature spec is `docs/features.md`, and 
 
 ## Status
 - **Version:** 0.1.0, deployed on Vercel: https://movie-vault-orpin.vercel.app/
-- **Built:** movie list (grid/list toggle, infinite scroll, 20 per page, sort by name / recently added / rating / year, default name A–Z; search, view, sort and scroll position survive visiting a movie and coming back), search bar that filters saved movies and falls back to "Search on TMDB →", TMDB preview page with "Add to vault" (de-dupes on `tmdb_id`), movie detail page with star rating, notes, watched status.
+- **Built:** movie list (grid/list toggle, infinite scroll, 20 per page, sort by name / recently added / rating / year, default name A–Z; watched / not watched filter; header shows the total count for the current filter; search, view, sort and scroll position survive visiting a movie and coming back), search bar that filters saved movies and falls back to "Search on TMDB →", TMDB preview page with "Add to vault" (de-dupes on `tmdb_id`), movie detail page with star rating, notes, watched status.
 - **Next (from PROJECTS.md):** rewrite README as a case study. Later: user accounts, TV shows/series.
 - See **Known gaps** below for what's still missing against the spec.
 
@@ -67,7 +67,7 @@ Bold "neo-brutalist" pop style: yellow dotted background, thick `#111123` ink bo
 
 ## Known gaps / tech debt
 1. **Mood and Rewatchable don't save.** They're UI-only state on the detail page. They aren't loaded from or written to Supabase, and mood always resets to "loved". Needs columns (`mood`, `rewatchable`) plus load/save wiring.
-2. **No filter, no mood sort.** Sorting by name / recently added / rating / year is done. Filtering (watched status, mood) isn't, and mood can't be sorted until it's saved (gap 1).
+2. **No mood filter/sort.** Sorting (name / recently added / rating / year) and the watched filter are done. Mood can't be filtered or sorted until it's saved (gap 1).
 3. **Search is one mode.** The brief describes a Search/Find toggle. The build does local filter first, then a "Search on TMDB" link.
 4. **Duplicates:** `supabase/2026-09-27-dedupe-movies.sql` removes 107 duplicate rows and adds unique indexes. Delete this line once it has been run.
 5. **Rating scale mismatch:** see Data model (stored /10, UI shows 5 stars).
@@ -87,3 +87,4 @@ Yuvaraj tracks all builds in `../Projects.xlsx` (Projects + Release Log sheets) 
 ## Log
 - 2026-09-27: Added this CLAUDE.md, `.env.example` and VS Code recommended extensions. Set the repo's git author email to the GitHub no-reply address. Type check and lint were clean at the time. Moving development to VS Code + Claude Code.
 - 2026-09-27: Fixed the home list: added explicit ordering (unordered paging was dropping edited movies and repeating rows), a sort control (default name A–Z), React Query caching plus `homeState` so back navigation keeps scroll, search, view and sort, and cache sync after edits/adds. Tab title is now "Movie Vault". Removed TMDB debug logging. Found 107 duplicate DB rows (mostly import copies). Wrote `supabase/2026-09-27-dedupe-movies.sql`; not run yet. Added the live URL.
+- 2026-09-27: Added the watched / not watched filter (rows with `watched` = null count as not watched). The list header now shows the total count for the filter (`useMovieCount`), or the number of matches when searching, instead of how many rows have loaded.
