@@ -10,9 +10,9 @@ A personal movie tracker web app (desktop-first). Log movies I've seen or want t
 The original brief is `docs/IA.md`, the feature spec is `docs/features.md`, and the target UI is `docs/UI/*.png` (visual references in `docs/references/`). **Check these before building or changing a feature.**
 
 ## Status
-- **Version:** 0.1.0, deployed on Vercel: https://movie-vault-orpin.vercel.app/
+- **Version:** 0.1.0 in `package.json`, deployed on Vercel: https://movie-vault-orpin.vercel.app/ (live build includes the 2026-09-27 fixes; no version bump yet).
 - **Built:** movie list (grid/list toggle, infinite scroll, 20 per page, sort by name / recently added / rating / year, default name A–Z; watched / not watched filter; header shows the total count for the current filter; search, view, sort and scroll position survive visiting a movie and coming back), search bar that filters saved movies and falls back to "Search on TMDB →", TMDB preview page with "Add to vault" (de-dupes on `tmdb_id`), movie detail page with star rating, notes, watched status.
-- **Next (from PROJECTS.md):** rewrite README as a case study. Later: user accounts, TV shows/series.
+- **Next (from PROJECTS.md):** run the duplicate cleanup SQL and fix the data items in Known gaps; save mood/rewatchable; fix the rating scale; rewrite README as a case study. Later: user accounts, TV shows/series.
 - See **Known gaps** below for what's still missing against the spec.
 
 ## Stack
@@ -60,21 +60,33 @@ There's no schema file or migrations in the repo. This is inferred from the code
 - Actual columns (checked 2026-09-27): `id`, `title`, `year` (int), `language`, `type`, `genres`, `poster_url`, `runtime`, `overview`, `credits`, `tmdb_rating`, `imdb_rating`, `rt_rating`, `streaming` (comma-separated text), `watched`, `user_rating`, `notes`, `tmdb_id`, `created_at`.
 - Most rows came from a bulk import: only ~30 have `tmdb_id`/`created_at`, so "recently added" sorts by `id`, not `created_at`.
 - `user_rating` in the data is **out of 10**, but the detail page's star picker is 1–5. One row (Avengers: Endgame) has 3000.
-- Rows are typed as `Record<string, unknown>` everywhere. A proper `Movie` type would be a good cleanup.
 
 ## Design language
 Bold "neo-brutalist" pop style: yellow dotted background, thick `#111123` ink borders (3–5px), hard offset shadows (`shadow-[4px_5px_0_#111123]`), heavy uppercase type (font-black), slight rotations on cards, and pink/cyan/green/purple accents. Colours are CSS vars in `globals.css` (`--vault-ink`, `--vault-yellow`, `--vault-pink`, `--vault-cyan`, `--vault-green`, `--vault-purple`), but most components hardcode the hex values. Reuse the `vault-panel`, `vault-chip`, `vault-button`, `vault-shell`, `vault-page` and `vault-float` classes. Posters use plain `<img>` (with the eslint disable), not `next/image`.
 
 ## Known gaps / tech debt
-1. **Mood and Rewatchable don't save.** They're UI-only state on the detail page. They aren't loaded from or written to Supabase, and mood always resets to "loved". Needs columns (`mood`, `rewatchable`) plus load/save wiring.
-2. **No mood filter/sort.** Sorting (name / recently added / rating / year) and the watched filter are done. Mood can't be filtered or sorted until it's saved (gap 1).
-3. **Search is one mode.** The brief describes a Search/Find toggle. The build does local filter first, then a "Search on TMDB" link.
-4. **Duplicates:** `supabase/2026-09-27-dedupe-movies.sql` removes 107 duplicate rows and adds unique indexes. Delete this line once it has been run.
-5. **Rating scale mismatch:** see Data model (stored /10, UI shows 5 stars).
-6. **Security:** no auth, so whoever has the anon key can read and write the table (check Supabase RLS). The TMDB key is `NEXT_PUBLIC_`, so it's exposed in the browser. Fine for a personal project, but fix it (server route or proxy) before adding accounts.
-7. Detail pages don't use React Query yet.
-8. `test.txt` is an empty file committed at the repo root. It can be deleted.
-9. README is still the create-next-app boilerplate. It's due to become a case study.
+Last reviewed 2026-09-27, after the sorting / filter / list-state fixes were deployed.
+
+**Waiting on Yuvaraj**
+1. **Duplicates still in the database.** `supabase/2026-09-27-dedupe-movies.sql` removes 107 duplicate rows (538 → 431) and adds unique indexes on `tmdb_id` and `(lower(title), year)`. It hasn't been run yet; run it in the Supabase SQL Editor (Claude isn't allowed to bulk-delete live rows), then delete this item. After it runs, adding a movie whose title + year already exist fails with "Could not add movie."
+2. **Data fixes by hand:** Avengers: Endgame has `user_rating` 3000; Oceans 11 has year 2013 (should be 2001); Shutter Island keeps rating 2 after the dedupe (its duplicate had 7), so change it if 7 was right.
+3. **Not browser-tested:** scroll restore on back and edits showing on the list straight away were only checked by type check, lint, build and data queries. Click through them on the live site.
+4. **`../Projects.xlsx` is behind** `../PROJECTS.md` (live URL, status, next steps, release notes). It was open in Excel, so it wasn't edited.
+
+**Product gaps against the spec**
+5. **Mood and Rewatchable don't save.** They're UI-only state on the detail page. They aren't loaded from or written to Supabase, and mood always resets to "loved". Needs columns (`mood`, `rewatchable`) plus load/save wiring. Mood filter/sort depends on this.
+6. **Rating scale mismatch:** ratings are stored out of 10 but the detail page's picker is 1–5 stars, so a 7 or 8 shows as 5 stars and saving rewrites it to /5.
+7. **Search is one mode.** The brief describes a Search/Find toggle. The build does local filter first, then a "Search on TMDB" link.
+8. **"Recently added" sorts by `id`,** because most rows have no `created_at`.
+
+**Tech debt**
+9. **Security:** no auth, so whoever has the anon key can read and write the table (check Supabase RLS). The TMDB key is `NEXT_PUBLIC_`, so it's exposed in the browser. Fine for a personal project, but fix it (server route or proxy) before adding accounts.
+10. Detail pages still fetch with `useState`/`useEffect`, not React Query.
+11. Local search sends a Supabase query on every keystroke (no debounce).
+12. Rows are typed as `Record<string, unknown>`; a proper `Movie` type would be a good cleanup.
+13. `test.txt` is an empty file committed at the repo root. It can be deleted.
+14. README is still the create-next-app boilerplate. It's due to become a case study.
+15. Version is still 0.1.0 even though the fixes above are deployed. Bump `package.json` (e.g. 0.2.0) and the tracker when cutting the release.
 
 ## Project tracker
 Yuvaraj tracks all builds in `../Projects.xlsx` (Projects + Release Log sheets) and `../PROJECTS.md` (markdown mirror). Update **both** when status, version, live URL or next step changes, and add a Release Log row per release. Bump `version` in `package.json` on each release.
@@ -88,3 +100,4 @@ Yuvaraj tracks all builds in `../Projects.xlsx` (Projects + Release Log sheets) 
 - 2026-09-27: Added this CLAUDE.md, `.env.example` and VS Code recommended extensions. Set the repo's git author email to the GitHub no-reply address. Type check and lint were clean at the time. Moving development to VS Code + Claude Code.
 - 2026-09-27: Fixed the home list: added explicit ordering (unordered paging was dropping edited movies and repeating rows), a sort control (default name A–Z), React Query caching plus `homeState` so back navigation keeps scroll, search, view and sort, and cache sync after edits/adds. Tab title is now "Movie Vault". Removed TMDB debug logging. Found 107 duplicate DB rows (mostly import copies). Wrote `supabase/2026-09-27-dedupe-movies.sql`; not run yet. Added the live URL.
 - 2026-09-27: Added the watched / not watched filter (rows with `watched` = null count as not watched). The list header now shows the total count for the filter (`useMovieCount`), or the number of matches when searching, instead of how many rows have loaded.
+- 2026-09-27: Reorganised Known gaps (waiting on Yuvaraj / product / tech debt) and brought Status and PROJECTS.md up to date.
